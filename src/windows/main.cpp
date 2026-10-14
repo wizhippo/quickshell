@@ -36,6 +36,7 @@ static int runShell(int argc, char** argv, bool& offerRestore) {
 	parser.addOption({{"p", "path"}, "QML configuration file or directory containing shell.qml.", "path"});
 	parser.addOption({"quit-after", "Exit after this many milliseconds (runtime verification).", "milliseconds"});
 	parser.addOption({"manage-explorer", "Ask to replace Explorer on startup and restore it after exit."});
+	parser.addOption({"no-immersive-host", "Disable the experimental Settings host for session diagnostics."});
 	parser.addPositionalArgument("config", "QML configuration file or directory.", "[config]");
 	parser.process(app);
 
@@ -87,17 +88,23 @@ static int runShell(int argc, char** argv, bool& offerRestore) {
 
 	const auto symbolCache = qEnvironmentVariable("QS_WINDOWS_SYMBOL_CACHE",
 	    QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath("windows-symbols"));
-	qs::windows::ImmersiveHost immersiveHost(std::filesystem::path(symbolCache.toStdWString()),
-	    [](bool warning, const std::string& message) {
-		    if (warning) qCWarning(logImmersiveHost).noquote() << QString::fromStdString(message).trimmed();
-		    else qCInfo(logImmersiveHost).noquote() << QString::fromStdString(message).trimmed();
-	    });
+	std::unique_ptr<qs::windows::ImmersiveHost> immersiveHost;
+	if (!parser.isSet("no-immersive-host")) {
+		immersiveHost = std::make_unique<qs::windows::ImmersiveHost>(
+		    std::filesystem::path(symbolCache.toStdWString()),
+		    [](bool warning, const std::string& message) {
+			    if (warning) qCWarning(logImmersiveHost).noquote() << QString::fromStdString(message).trimmed();
+			    else qCInfo(logImmersiveHost).noquote() << QString::fromStdString(message).trimmed();
+		    });
+	} else {
+		qCInfo(logImmersiveHost) << "Experimental Settings host disabled for session diagnostics.";
+	}
 	// Keep the GUI event loop responsive while symbols/controller initialize.
 	// QML services start after the host so they cannot race its shell handoff.
 	std::unique_ptr<RootWrapper> root;
 	QTimer startup;
 	const auto loadRoot = [&] {
-		if (immersiveHost.state() == qs::windows::ImmersiveHost::State::Starting) return;
+		if (immersiveHost && immersiveHost->state() == qs::windows::ImmersiveHost::State::Starting) return;
 		startup.stop();
 		root = std::make_unique<RootWrapper>(path, shellId);
 	};

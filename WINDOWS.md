@@ -344,6 +344,81 @@ visibility, uncloaking, centering, native icon, decorations, foreground and
 keyboard focus. This mode does not stop Explorer and returns 77 while another
 desktop shell is registered.
 
+### Supported API comparison
+
+Microsoft documents `ms-settings:` with `Windows.System.Launcher.LaunchUriAsync`
+for desktop applications: [Launch Windows Settings](https://learn.microsoft.com/en-us/windows/apps/develop/launch/launch-settings).
+`IApplicationActivationManager` is another public activation API. For a
+short-lived launcher, Microsoft recommends `CLSCTX_LOCAL_SERVER` so activation
+arguments outlive the calling process: [activation manager lifetime](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-iapplicationactivationmanager).
+
+`windows-settings-api-probe.exe uri|winrt|application|protocol` compares these
+APIs independently of the private host. It checks COM results, activation
+results, Settings frame/content attachment and visibility, and the registered
+shell PID. Run each mode in a separate process with an external timeout;
+native activation can block indefinitely without a functioning shell session.
+
+On 2026-10-14, the Professional-edition test machine reported build 26300.9711.
+With Explorer running, all four modes opened attached, visible Settings content.
+After temporarily stopping Explorer, without starting our immersive host:
+
+| API | Result without Explorer |
+| --- | --- |
+| `ShellExecuteExW`, initialized STA | Timed out after the external 18-second limit |
+| Plain `LaunchUriAsync`, initialized MTA | Timed out with `0x800705b4`; no Settings window |
+| `ActivateApplication`, local-server manager, no arguments | Manager creation succeeded; activation timed out after 18 seconds |
+| `ActivateForProtocol`, local-server manager | Manager creation succeeded; activation timed out after 18 seconds |
+
+COM initialization succeeded in every mode, and the shell PID remained zero.
+Explorer was restored after testing. These results cover an Explorer session
+whose desktop process was stopped; they do not establish behavior when Explorer
+never starts at login.
+
+A paired Process Monitor capture confirmed successful resolution of
+`HKCR\ms-settings\Shell\Open\Command\DelegateExecute` in both sessions.
+`SystemSettings.exe` started in both, but the desktop-stopped launch timed out
+without presenting a frame. Access-denied registry operations also occurred in
+the successful control; those errors alone do not identify the cause. The
+capture narrows the problem to activation/presentation after protocol resolution,
+but does not establish the specific failing COM or RPC operation.
+
+The exact Qt `QDesktopServices::openUrl(QUrl("ms-settings:", QUrl::TolerantMode))`
+control opened Settings with Explorer running. In the desktop-stopped comparison
+it returned `true` while only a cloaked content window existed; Explorer had
+restarted by the visibility check. A successful return therefore does not prove
+that Settings is visible or that activation is independent of Explorer.
+The exact Qt `QProcess::startDetached` helpers for `/separate C:\` and
+`shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}` both started successfully,
+but their subsequent Settings URI calls exceeded the 18-second limit while the
+desktop shell PID was zero. Neither supplied a working fallback in this session.
+
+Microsoft's [Shell Launcher v2](https://learn.microsoft.com/en-us/windows/configuration/shell-launcher/)
+uses `CustomShellHost.exe` and explicitly supports desktop replacement shells
+launching UWP applications such as Settings. Its supported editions are
+Enterprise, Education and IoT Enterprise. Pro supports the separate
+[Custom User Interface policy](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-winlogon#customshell),
+which replaces Explorer at login; that documentation does not make the same
+UWP-hosting promise.
+
+For a fresh-login comparison in a test account or VM, Quickshell now accepts
+`--no-immersive-host`. It loads the configuration without starting the private
+controller, loading its symbols, or registering its hidden shell window.
+Use this switch with the ordinary `System.openSettings()` path to avoid masking
+the session's actual API behavior.
+
+The fresh-login comparison was subsequently performed on 2026-10-14 using
+the per-user Custom User Interface policy and a PowerShell lifetime wrapper
+that starts Quickshell with `--no-immersive-host`. The startup record reported
+desktop PID zero, no Explorer processes, and the private host disabled.
+Quickshell loaded its configuration, but opening `ms-settings:network-wifi`
+failed with `0x80040900`. Windows TWinUI event 5961 independently recorded the
+Settings app activation failure with the same code and phase `COM App activation`.
+The original policy was restored afterward. This tests this machine and wrapper;
+it does not prove that every replacement shell or Windows build behaves identically.
+The Custom User Interface policy alone did not make ordinary Settings activation
+work in this fresh session. The public API and Explorer-folder alternatives tested
+here therefore do not currently replace the experimental immersive host.
+
 ## Windows notification history
 
 `Quickshell.Windows.NotificationHistory` exposes a read-only

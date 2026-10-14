@@ -48,6 +48,15 @@ target_link_libraries(windows-immersive-host-probe PRIVATE quickshell-windows-im
 add_test(NAME windows-immersive-host COMMAND windows-immersive-host-probe --guard)
 set_tests_properties(windows-immersive-host PROPERTIES SKIP_RETURN_CODE 77)
 
+# Manual API comparison; never starts the private immersive host or Explorer.
+add_executable(windows-settings-api-probe settings_api_probe.cpp)
+set_target_properties(windows-settings-api-probe PROPERTIES WIN32_EXECUTABLE FALSE AUTOMOC FALSE)
+target_link_libraries(windows-settings-api-probe PRIVATE user32 shell32 ole32 uuid dwmapi WindowsApp)
+
+add_executable(windows-settings-qt-probe settings_qt_probe.cpp)
+set_target_properties(windows-settings-qt-probe PROPERTIES WIN32_EXECUTABLE FALSE AUTOMOC FALSE)
+target_link_libraries(windows-settings-qt-probe PRIVATE Qt::Gui user32 shell32 ole32 uuid dwmapi)
+
 # The manual configurations and desktop smoke scripts in this directory are
 # run against a real desktop rather than by CTest:
 #   quickshell -p src/windows/test/manual/<name>.qml
