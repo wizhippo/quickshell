@@ -20,7 +20,11 @@ QS_LOGGING_CATEGORY(logWifiNetwork, "quickshell.wifinetwork", QtWarningMsg);
 }
 
 WifiNetwork::WifiNetwork(QString ssid, NetworkDevice* device, QObject* parent)
-    : Network(std::move(ssid), device, parent) {};
+    : Network(std::move(ssid), device, parent) {
+	// The zero value of WifiSecurityType is a real security type, so an unset
+	// security would otherwise read as WPA3 Suite B 192-bit.
+	this->bSecurity = WifiSecurityType::Unknown;
+};
 
 void WifiNetwork::connectWithPsk(const QString& psk) {
 	if (this->bConnected) {

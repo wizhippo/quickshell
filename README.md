@@ -17,6 +17,10 @@ This repo is hosted at:
 Licensed under the GNU LGPL 3.
 </sup>
 
+The Windows port retains this license. See [NOTICE](NOTICE),
+[Windows dependency notices](THIRD-PARTY-NOTICES.md), and
+[Windows release preparation](WINDOWS-RELEASE.md).
+
 <br>
 
 <sub>

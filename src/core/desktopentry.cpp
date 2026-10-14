@@ -17,6 +17,7 @@
 #include <qscopeguard.h>
 #include <qtenvironmentvariables.h>
 #include <qthreadpool.h>
+#include <qstandardpaths.h>
 #include <qtmetamacros.h>
 #include <ranges>
 
@@ -25,6 +26,10 @@
 #include "logcat.hpp"
 #include "model.hpp"
 #include "qmlglobal.hpp"
+
+#ifdef Q_OS_WIN
+#include "../windows/desktop_entry_scan.hpp"
+#endif
 
 namespace {
 QS_LOGGING_CATEGORY(logDesktopEntry, "quickshell.desktopentry", QtWarningMsg);
@@ -351,8 +356,26 @@ DesktopEntryScanner::DesktopEntryScanner(DesktopEntryManager* manager): manager(
 }
 
 void DesktopEntryScanner::run() {
-	const auto& desktopPaths = DesktopEntryManager::desktopPaths();
 	auto scanResults = QList<ParsedDesktopEntryData>();
+	QString error;
+#ifdef Q_OS_WIN
+	const auto result = qs::windows::scanApplications();
+	if (result.error) {
+		error = QStringLiteral("Windows application discovery failed (0x%1).")
+		    .arg(result.error, 8, 16, QLatin1Char('0'));
+		qCWarning(logDesktopEntry) << error;
+	}
+	for (const auto& app: result.entries) {
+		ParsedDesktopEntryData data;
+		data.id = QString::fromStdWString(app.id);
+		data.name = QString::fromStdWString(app.name);
+		data.startupClass = data.id;
+		data.command = {QStringLiteral("explorer.exe"), QStringLiteral("shell:AppsFolder\\") + data.id};
+		// Windows has no .desktop Exec string, categories, or action metadata.
+		scanResults.append(std::move(data));
+	}
+#else
+	const auto& desktopPaths = DesktopEntryManager::desktopPaths();
 
 	for (const auto& path: desktopPaths | std::views::reverse) {
 		auto file = QFileInfo(path);
@@ -360,12 +383,15 @@ void DesktopEntryScanner::run() {
 
 		this->scanDirectory(QDir(path), QString(), scanResults);
 	}
+#endif
 
 	QMetaObject::invokeMethod(
 	    this->manager,
-	    "onScanCompleted",
-	    Qt::QueuedConnection,
-	    Q_ARG(QList<ParsedDesktopEntryData>, scanResults)
+	    [manager = this->manager, scanResults = std::move(scanResults), error] {
+		    manager->bErrorString = error;
+		    manager->onScanCompleted(scanResults);
+	    },
+	    Qt::QueuedConnection
 	);
 }
 
@@ -411,7 +437,12 @@ DesktopEntryManager::DesktopEntryManager(): monitor(new DesktopEntryMonitor(this
 	    &DesktopEntryManager::handleFileChanges
 	);
 
+#ifdef Q_OS_WIN
+	// Shell enumeration can block. Do not run it on the QML GUI thread.
+	this->scanDesktopEntries();
+#else
 	DesktopEntryScanner(this).run();
+#endif
 }
 
 void DesktopEntryManager::scanDesktopEntries() {
@@ -424,6 +455,7 @@ void DesktopEntryManager::scanDesktopEntries() {
 	}
 
 	this->scanInProgress = true;
+	this->bLoading = true;
 	this->scanQueued = false;
 	auto* scanner = new DesktopEntryScanner(this);
 	QThreadPool::globalInstance()->start(scanner);
@@ -474,13 +506,14 @@ void DesktopEntryManager::handleFileChanges() {
 		return;
 	}
 
-	this->scanInProgress = true;
-	this->scanQueued = false;
-	auto* scanner = new DesktopEntryScanner(this);
-	QThreadPool::globalInstance()->start(scanner);
+	this->scanDesktopEntries();
 }
 
 const QStringList& DesktopEntryManager::desktopPaths() {
+#ifdef Q_OS_WIN
+	static const auto paths = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
+	return paths;
+#else
 	static const auto paths = []() {
 		auto dataPaths = QStringList();
 
@@ -500,11 +533,13 @@ const QStringList& DesktopEntryManager::desktopPaths() {
 	}();
 
 	return paths;
+#endif
 }
 
 void DesktopEntryManager::onScanCompleted(const QList<ParsedDesktopEntryData>& scanResults) {
 	auto guard = qScopeGuard([this] {
 		this->scanInProgress = false;
+		this->bLoading = false;
 		if (this->scanQueued) {
 			this->scanQueued = false;
 			this->scanDesktopEntries();
@@ -589,6 +624,8 @@ void DesktopEntryManager::onScanCompleted(const QList<ParsedDesktopEntryData>& s
 }
 
 DesktopEntries::DesktopEntries() {
+	QObject::connect(DesktopEntryManager::instance(), &DesktopEntryManager::scanStatusChanged,
+	                 this, &DesktopEntries::scanStatusChanged);
 	QObject::connect(
 	    DesktopEntryManager::instance(),
 	    &DesktopEntryManager::applicationsChanged,
@@ -596,6 +633,8 @@ DesktopEntries::DesktopEntries() {
 	    &DesktopEntries::applicationsChanged
 	);
 }
+
+void DesktopEntries::refresh() { DesktopEntryManager::instance()->scanDesktopEntries(); }
 
 DesktopEntry* DesktopEntries::byId(const QString& id) {
 	return DesktopEntryManager::instance()->byId(id);

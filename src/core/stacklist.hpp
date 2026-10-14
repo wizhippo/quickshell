@@ -9,6 +9,7 @@
 
 #include <qlist.h>
 #include <qtypes.h>
+#include <qvarLengthArray.h>
 
 template <class T, size_t N>
 class StackList {
@@ -161,13 +162,17 @@ private:
 // #define STACKLIST_ALLOCA_VIEW(list) ((list).isContiguous() ? (list).pArray() : (list).populateAlloc(alloca((list).dataLength())))
 
 // NOLINTBEGIN
-#define STACKLIST_VLA_VIEW(type, list, var)                                                        \
-	const type* var;                                                                                 \
-	type var##Data[(list).length()];                                                                 \
-	if ((list).isContiguous()) {                                                                     \
-		(var) = (list).pArray();                                                                       \
+// The fallback buffer is heap backed: a VLA would be shorter, but it is a GNU
+// extension, and StackList has no compile time bound to size a stack array by.
+#define STACKLIST_VIEW(type, list, var)                                                             \
+	const type* var = nullptr;                                                                       \
+	QVarLengthArray<type> var##Storage((list).length());                                              \
+	if ((list).isContiguous()) {                                                                      \
+		var = (list).pArray();                                                                         \
 	} else {                                                                                         \
-		(list).populateAlloc(var##Data);                                                               \
-		(var) = var##Data;                                                                             \
+		(list).populateAlloc(var##Storage.data());                                                      \
+		var = var##Storage.data();                                                                     \
 	}
+
+#define STACKLIST_VLA_VIEW(type, list, var) STACKLIST_VIEW(type, list, var)
 // NOLINTEND

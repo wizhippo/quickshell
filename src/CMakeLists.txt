@@ -1,9 +1,15 @@
-qt_add_executable(quickshell main.cpp)
+if (WIN32)
+	qt_add_executable(quickshell windows/main.cpp windows/explorer_session.cpp)
+else()
+	qt_add_executable(quickshell main.cpp)
+endif()
 
 install(TARGETS quickshell RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(build)
-add_subdirectory(launch)
+if (NOT WIN32)
+	add_subdirectory(launch)
+endif()
 add_subdirectory(core)
 add_subdirectory(debug)
 add_subdirectory(ipc)
@@ -12,6 +18,10 @@ add_subdirectory(io)
 add_subdirectory(widgets)
 add_subdirectory(ui)
 add_subdirectory(windowmanager)
+
+if (WIN32)
+	add_subdirectory(windows)
+endif()
 
 if (CRASH_HANDLER)
 	add_subdirectory(crash)

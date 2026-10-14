@@ -32,9 +32,16 @@ public:
 };
 
 // NOLINTBEGIN
-#define QS_REGISTER_PLUGIN(clazz)                                                                  \
-	[[gnu::constructor]] void qsInitPlugin() {                                                       \
-		static clazz plugin;                                                                           \
-		QsEnginePlugin::registerPlugin(plugin);                                                        \
-	}
+// A namespace scope object with a constructor runs during static
+// initialisation on every compiler. [[gnu::constructor]] would be tidier, but
+// MSVC ignores it, which would leave no plugin registered at all.
 // NOLINTEND
+#define QS_REGISTER_PLUGIN(clazz)                                                                  \
+	namespace {                                                                                      \
+	struct QsPluginRegistrar_##__LINE__ {                                                            \
+		QsPluginRegistrar_##__LINE__() {                                                             \
+			static clazz plugin;                                                                     \
+			QsEnginePlugin::registerPlugin(plugin);                                                  \
+		}                                                                                            \
+	} qsPluginRegistrar_##__LINE__;                                                                 \
+	}

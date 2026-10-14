@@ -44,8 +44,18 @@ bool Process::isRunning() const { return this->process != nullptr; }
 
 void Process::setRunning(bool running) {
 	this->targetRunning = running;
-	if (running) this->startProcessIfReady();
-	else if (this->isRunning()) this->process->terminate();
+	if (running) {
+		this->startProcessIfReady();
+	} else if (this->isRunning()) {
+#ifdef Q_OS_WIN
+		// Qt documents terminate() as having no effect on Windows, which
+		// would leave the process running and orphaned once this object is
+		// gone. kill() is the only way to stop one there.
+		this->process->kill();
+#else
+		this->process->terminate();
+#endif
+	}
 }
 
 QVariant Process::processId() const {
@@ -312,7 +322,13 @@ void Process::onStderrReadyRead() {
 
 void Process::signal(qint32 signal) {
 	if (this->process == nullptr) return;
+#ifdef Q_OS_WIN
+	if (signal == 15) this->process->terminate();
+	else if (signal == 9) this->process->kill();
+	else qmlWarning(this) << "Windows supports only termination (15) and kill (9); Unix signals are unavailable.";
+#else
 	kill(static_cast<qint32>(this->process->processId()), signal); // NOLINT
+#endif
 }
 
 void Process::write(const QString& data) {

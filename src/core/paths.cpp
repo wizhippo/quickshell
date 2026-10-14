@@ -13,10 +13,28 @@
 #include <qstandardpaths.h>
 #include <qtenvironmentvariables.h>
 #include <qtversionchecks.h>
+#ifndef Q_OS_WIN
 #include <unistd.h>
+#endif
 
 #include "instanceinfo.hpp"
 #include "logcat.hpp"
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <io.h>
+namespace {
+bool lockFile(QFile& file) {
+	OVERLAPPED overlapped{};
+	// Lock a byte beyond the metadata rather than denying other processes
+	// permission to read InstanceInfo while the instance is alive.
+	overlapped.Offset = MAXDWORD;
+	const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(file.handle()));
+	return LockFileEx(handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+	                 0, 1, 0, &overlapped) != FALSE;
+}
+}
+#endif
 
 namespace {
 QS_LOGGING_CATEGORY(logPaths, "quickshell.paths", QtWarningMsg);
@@ -64,7 +82,11 @@ QDir* QsPaths::baseRunDir() {
 	if (this->baseRunState == DirState::Unknown) {
 		auto runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
 		if (runtimeDir.isEmpty()) {
+#ifdef Q_OS_WIN
+			runtimeDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/runtime";
+#else
 			runtimeDir = QString("/run/user/%1").arg(getuid());
+#endif
 			qCInfo(logPaths) << "XDG_RUNTIME_DIR was not set, defaulting to" << runtimeDir;
 		}
 
@@ -169,6 +191,7 @@ QDir* QsPaths::shellVfsDir() {
 	else return &this->mShellVfsDir;
 }
 
+#ifndef Q_OS_WIN
 void QsPaths::linkRunDir() {
 	if (auto* runDir = this->instanceRunDir()) {
 		auto pidDir = QDir(this->baseRunDir()->filePath("by-pid"));
@@ -247,6 +270,8 @@ void QsPaths::linkPathDir() {
 		                        "shell runtime directory could not be created.";
 	}
 }
+
+#endif // Unix runtime symlink indexes are not used by the Windows launcher.
 
 QDir QsPaths::shellDataDir() {
 	if (this->shellDataState == DirState::Unknown) {
@@ -361,6 +386,16 @@ void QsPaths::createLock() {
 			return;
 		}
 
+#ifdef Q_OS_WIN
+		if (!lockFile(*file)) {
+			qCCritical(logPaths) << "Could not lock instance file:" << path << GetLastError();
+			delete file;
+		} else {
+			QDataStream stream(file);
+			stream << InstanceInfo::CURRENT;
+			file->flush();
+		}
+#else
 		struct flock lock = {
 		    .l_type = F_WRLCK,
 		    .l_whence = SEEK_SET,
@@ -378,6 +413,7 @@ void QsPaths::createLock() {
 			file->flush();
 			qCDebug(logPaths) << "Created instance lock at" << path;
 		}
+#endif
 	} else {
 		qCCritical(
 		    logPaths
@@ -387,6 +423,18 @@ void QsPaths::createLock() {
 
 bool QsPaths::checkLock(const QString& path, InstanceLockInfo* info, bool allowDead) {
 	auto file = QFile(QDir(path).filePath("instance.lock"));
+#ifdef Q_OS_WIN
+	if (!file.open(QFile::ReadWrite)) return false;
+	const auto isLocked = !lockFile(file);
+	if (isLocked && GetLastError() != ERROR_LOCK_VIOLATION) return false;
+	if (!isLocked && !allowDead) return false;
+	if (info) {
+		QDataStream stream(&file);
+		stream >> info->instance;
+		info->pid = isLocked ? info->instance.pid : -1;
+	}
+	return true;
+#else
 	if (!file.open(QFile::ReadOnly)) return false;
 
 	struct flock lock = {
@@ -410,6 +458,7 @@ bool QsPaths::checkLock(const QString& path, InstanceLockInfo* info, bool allowD
 	}
 
 	return true;
+#endif
 }
 
 std::tuple<QVector<InstanceLockInfo>, QVector<InstanceLockInfo>, QVector<InstanceLockInfo>>

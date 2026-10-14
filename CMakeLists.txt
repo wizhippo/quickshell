@@ -9,6 +9,27 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(QS_BUILD_OPTIONS "")
 
+# Windows starts with the portable modules and the native AppBar backend.
+# These services depend on Linux/Unix facilities and have no Windows backend yet.
+if (WIN32)
+	foreach(feature USE_JEMALLOC CRASH_HANDLER SOCKETS WAYLAND X11 I3
+		SERVICE_STATUS_NOTIFIER SERVICE_PIPEWIRE SERVICE_MPRIS SERVICE_PAM
+		SERVICE_POLKIT SERVICE_GREETD SERVICE_UPOWER SERVICE_NOTIFICATIONS BLUETOOTH)
+		option(${feature} "Unix integration (not available on Windows)" OFF)
+		if (${feature})
+			message(FATAL_ERROR "${feature} has no Windows backend yet; configure it OFF.")
+		endif()
+	endforeach()
+	add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX
+		# The IP helper and WLAN headers only declare the modern types and
+		# enumerators above Vista, and no toolchain defaults to a new enough
+		# version. Must match across every translation unit, since those
+		# headers change struct layouts with it.
+		_WIN32_WINNT=0x0A00
+		_WIN32_WINNT_MAXVER=0x0A00
+	)
+endif()
+
 # should be changed for forks
 set(CRASHREPORT_URL "https://github.com/outfoxxed/quickshell/issues/new?template=crash2.yml" CACHE STRING "Bugreport URL")
 
@@ -85,19 +106,28 @@ boption(NETWORK "Network" ON)
 include(cmake/install-qml-module.cmake)
 include(cmake/util.cmake)
 
-add_compile_options(-Wall -Wextra -Wno-vla-cxx-extension)
+if (MSVC)
+	# cl.exe spells these /Wall /W4 and rejects the GCC spellings, and MSVC
+	# already omits frame pointers for release builds.
+	add_compile_options(/Wall)
+	# The datastream helpers rely on __VA_OPT__, which the legacy preprocessor
+	# does not accept.
+	add_compile_options(/Zc:preprocessor)
+	add_compile_definitions(_REENTRANT)
+else()
+	add_compile_options(-Wall -Wextra -Wno-vla-cxx-extension)
+	# pipewire defines these, breaking PCH
+	add_compile_definitions(_REENTRANT)
+	add_compile_options(-fno-strict-overflow)
 
-# pipewire defines these, breaking PCH
-add_compile_definitions(_REENTRANT)
-add_compile_options(-fno-strict-overflow)
+	if (FRAME_POINTERS)
+		add_compile_options(-fno-omit-frame-pointer)
+	endif()
 
-if (FRAME_POINTERS)
-	add_compile_options(-fno-omit-frame-pointer)
-endif()
-
-if (ASAN)
-	add_compile_options(-fsanitize=address)
-	add_link_options(-fsanitize=address)
+	if (ASAN)
+		add_compile_options(-fsanitize=address)
+		add_link_options(-fsanitize=address)
+	endif()
 endif()
 
 # nix workaround
@@ -110,7 +140,7 @@ if (NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(QT_FPDEPS Gui Qml Quick QuickControls2 Widgets ShaderTools)
+set(QT_FPDEPS Gui Qml Quick QuickControls2 Widgets ShaderTools Network)
 set(QT_PRIVDEPS QuickPrivate)
 
 include(cmake/pch.cmake)
@@ -119,6 +149,12 @@ if (BUILD_TESTING)
 	enable_testing()
 	add_definitions(-DQS_TEST)
 	list(APPEND QT_FPDEPS Test)
+	if (WIN32)
+		# Tests are console programs. Qt otherwise defaults executables to the
+		# GUI subsystem on Windows, which detaches stdout so CTest sees a
+		# failure with no diagnostic at all.
+		set(CMAKE_WIN32_EXECUTABLE FALSE)
+	endif()
 endif()
 
 if (SOCKETS)
@@ -130,7 +166,9 @@ if (WAYLAND)
 	list(APPEND QT_PRIVDEPS WaylandClientPrivate)
 endif()
 
-if (SERVICE_STATUS_NOTIFIER OR SERVICE_MPRIS OR SERVICE_UPOWER OR SERVICE_NOTIFICATIONS OR BLUETOOTH OR NETWORK)
+# The Networking module only needs D-Bus for its NetworkManager backend; the
+# Windows backend talks to the IPHLPAPI and WLAN APIs instead.
+if (SERVICE_STATUS_NOTIFIER OR SERVICE_MPRIS OR SERVICE_UPOWER OR SERVICE_NOTIFICATIONS OR BLUETOOTH OR (NETWORK AND NOT WIN32))
 	set(DBUS ON)
 endif()
 

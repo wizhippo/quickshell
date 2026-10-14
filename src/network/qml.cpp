@@ -10,7 +10,12 @@
 #include "../core/logcat.hpp"
 #include "device.hpp"
 #include "enums.hpp"
-#include "nm/backend.hpp"
+
+#ifdef QS_NETWORK_BACKEND_NM
+#	include "nm/backend.hpp"
+#else
+#	include "win/backend.hpp"
+#endif
 
 namespace qs::network {
 
@@ -19,6 +24,7 @@ QS_LOGGING_CATEGORY(logNetwork, "quickshell.network", QtWarningMsg);
 } // namespace
 
 Networking::Networking(QObject* parent): QObject(parent) {
+#ifdef QS_NETWORK_BACKEND_NM
 	// Try to create the NetworkManager backend and bind to it.
 	auto* nm = new NetworkManager(this);
 	if (nm->isAvailable()) {
@@ -41,6 +47,32 @@ Networking::Networking(QObject* parent): QObject(parent) {
 	} else {
 		delete nm;
 	}
+#else
+	auto* windows = new qs::network::win::Backend(this);
+	if (windows->isAvailable()) {
+		// clang-format off
+		QObject::connect(windows, &qs::network::win::Backend::deviceAdded, this, &Networking::deviceAdded);
+		QObject::connect(windows, &qs::network::win::Backend::deviceRemoved, this, &Networking::deviceRemoved);
+		QObject::connect(this, &Networking::requestSetWifiEnabled, windows, &qs::network::win::Backend::setWifiEnabled);
+		QObject::connect(this, &Networking::requestSetConnectivityCheckEnabled, windows, &qs::network::win::Backend::setConnectivityCheckEnabled);
+		QObject::connect(this, &Networking::requestCheckConnectivity, windows, &qs::network::win::Backend::checkConnectivity);
+		this->bindableWifiEnabled().setBinding([windows]() { return windows->wifiEnabled(); });
+		this->bindableWifiHardwareEnabled().setBinding([windows]() { return windows->wifiHardwareEnabled(); });
+		this->bindableCanCheckConnectivity().setBinding([windows]() { return windows->connectivityCheckAvailable(); });
+		this->bindableConnectivityCheckEnabled().setBinding([windows]() { return windows->connectivityCheckEnabled(); });
+		this->bindableConnectivity().setBinding([windows]() { return windows->connectivity(); });
+		// clang-format on
+
+		this->mBackend = windows;
+		this->mBackendType = NetworkBackendType::Windows;
+		// Only now that the signals above are connected can the backend
+		// publish the interfaces it found.
+		windows->refresh();
+		return;
+	} else {
+		delete windows;
+	}
+#endif
 	qCCritical(logNetwork) << "Network will not work. Could not find an available backend.";
 }
 

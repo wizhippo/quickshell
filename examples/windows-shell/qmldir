@@ -1,0 +1,5 @@
+singleton Theme 1.0 Theme.qml
+ShellButton 1.0 ShellButton.qml
+ShellPanel 1.0 ShellPanel.qml
+WindowsServices 1.0 WindowsServices.qml
+WallpaperWindow 1.0 WallpaperWindow.qml

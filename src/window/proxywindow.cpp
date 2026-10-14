@@ -156,6 +156,7 @@ void ProxyWindowBase::ensureQWindow() {
 	this->window = this->createQQuickWindow();
 	this->window->setFormat(format);
 
+#ifndef Q_OS_WIN
 	// needed for vulkan dmabuf import, qt ignores these if not applicable
 	auto graphicsConfig = this->window->graphicsConfiguration();
 	graphicsConfig.setDeviceExtensions({
@@ -164,6 +165,7 @@ void ProxyWindowBase::ensureQWindow() {
 	    "VK_EXT_image_drm_format_modifier",
 	});
 	this->window->setGraphicsConfiguration(graphicsConfig);
+#endif
 }
 
 void ProxyWindowBase::createWindow() {

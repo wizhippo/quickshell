@@ -3,7 +3,7 @@
 #include <qdatetime.h>
 #include <qlogging.h>
 #include <qstring.h>
-#include <sys/types.h>
+#include <qtypes.h>
 
 struct InstanceInfo {
 	QString instanceId;
@@ -11,7 +11,8 @@ struct InstanceInfo {
 	QString shellId;
 	QString appId;
 	QDateTime launchTime;
-	pid_t pid = -1;
+	// Not pid_t: that is POSIX only, and this is only ever a process id.
+	qint32 pid = -1;
 	QString display;
 
 	static InstanceInfo CURRENT; // NOLINT

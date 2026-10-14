@@ -57,10 +57,7 @@ QUrl QsUrlInterceptor::intercept(
 			// will not be able to use singletons.
 			if (path.endsWith(".qml")) return url;
 
-			auto newUrl = url;
-			newUrl.setScheme("file");
-			// above check asserts path starts with /qs/
-			newUrl.setPath(path);
+			auto newUrl = QUrl::fromLocalFile(path);
 			qCDebug(logQsIntercept) << "Rewrote intercept" << url << "to" << newUrl;
 			return newUrl;
 		}
@@ -114,9 +111,7 @@ QNetworkReply* QsInterceptNetworkAccessManager::createRequest(
 		}
 
 		auto fileReq = req;
-		auto fileUrl = req.url();
-		fileUrl.setScheme("file");
-		fileUrl.setPath(path);
+		auto fileUrl = QUrl::fromLocalFile(path);
 		qCDebug(logQsIntercept) << "Passing through intercept" << url << "to" << fileUrl;
 
 		fileReq.setUrl(fileUrl);

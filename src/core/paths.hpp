@@ -10,7 +10,7 @@
 #include "instanceinfo.hpp"
 
 struct InstanceLockInfo {
-	pid_t pid = -1;
+	qint32 pid = -1;
 	InstanceInfo instance;
 };
 

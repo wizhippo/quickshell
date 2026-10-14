@@ -3,6 +3,7 @@
 #include <qobject.h>
 #include <qproperty.h>
 #include <qqmlintegration.h>
+#include <qstringlist.h>
 #include <qtmetamacros.h>
 #include <qtypes.h>
 
@@ -35,6 +36,23 @@ class NetworkDevice: public QObject {
 	Q_PROPERTY(UntypedObjectModel* networks READ networks CONSTANT);
 	/// The hardware address of the device in the XX:XX:XX:XX:XX:XX format.
 	Q_PROPERTY(QString address READ default NOTIFY addressChanged BINDABLE bindableAddress);
+	/// IPv4 addresses currently assigned to the device, in host order.
+	///
+	/// > [!NOTE] Not all backends report addressing. An empty list means the
+	/// > backend has nothing to say, not that the device is unaddressed.
+	Q_PROPERTY(QStringList ipv4Addresses READ default NOTIFY ipv4AddressesChanged BINDABLE bindableIpv4Addresses);
+	/// IPv4 addresses of the gateways reachable through the device, in priority order.
+	///
+	/// > [!NOTE] Not all backends report addressing. An empty list means the
+	/// > backend has nothing to say, not that the device has no gateway.
+	Q_PROPERTY(QStringList gateways READ default NOTIFY gatewaysChanged BINDABLE bindableGateways);
+	/// Addresses of the DNS servers configured for the device, in priority order.
+	///
+	/// > [!NOTE] Not all backends report addressing. An empty list means the
+	/// > backend has nothing to say, not that DNS is unconfigured.
+	Q_PROPERTY(QStringList dnsServers READ default NOTIFY dnsServersChanged BINDABLE bindableDnsServers);
+	/// Speed of the physical device link in megabits per second, or 0 if unknown.
+	Q_PROPERTY(quint32 linkSpeed READ default NOTIFY linkSpeedChanged BINDABLE bindableLinkSpeed);
 	/// True if the device is connected.
 	Q_PROPERTY(bool connected READ default NOTIFY connectedChanged BINDABLE bindableConnected);
 	/// Connection state of the device.
@@ -61,7 +79,13 @@ public:
 	QBindable<QString> bindableName() { return &this->bName; }
 	[[nodiscard]] QString name() const { return this->bName; }
 	QBindable<QString> bindableAddress() { return &this->bAddress; }
+	QBindable<QStringList> bindableIpv4Addresses() { return &this->bIpv4Addresses; }
+	QBindable<QStringList> bindableGateways() { return &this->bGateways; }
+	QBindable<QStringList> bindableDnsServers() { return &this->bDnsServers; }
+	QBindable<quint32> bindableLinkSpeed() { return &this->bLinkSpeed; }
 	QBindable<bool> bindableConnected() { return &this->bConnected; }
+	[[nodiscard]] QStringList gateways() const { return this->bGateways; }
+	[[nodiscard]] ConnectionState::Enum state() const { return this->bState; }
 	QBindable<ConnectionState::Enum> bindableState() { return &this->bState; }
 	QBindable<bool> bindableNmManaged() { return &this->bNmManaged; }
 	[[nodiscard]] bool nmManaged() { return this->bNmManaged; }
@@ -76,6 +100,10 @@ signals:
 	QSDOC_HIDE void requestSetNmManaged(bool managed);
 	void nameChanged();
 	void addressChanged();
+	void ipv4AddressesChanged();
+	void gatewaysChanged();
+	void dnsServersChanged();
+	void linkSpeedChanged();
 	void connectedChanged();
 	void stateChanged();
 	void nmManagedChanged();
@@ -89,6 +117,10 @@ private:
 	// clang-format off
 	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, QString, bName, &NetworkDevice::nameChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, QString, bAddress, &NetworkDevice::addressChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, QStringList, bIpv4Addresses, &NetworkDevice::ipv4AddressesChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, QStringList, bGateways, &NetworkDevice::gatewaysChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, QStringList, bDnsServers, &NetworkDevice::dnsServersChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, quint32, bLinkSpeed, &NetworkDevice::linkSpeedChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, bool, bConnected, &NetworkDevice::connectedChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, ConnectionState::Enum, bState, &NetworkDevice::stateChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(NetworkDevice, bool, bNmManaged, &NetworkDevice::nmManagedChanged);

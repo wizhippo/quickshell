@@ -37,10 +37,11 @@ class NetworkBackendType: public QObject {
 	QML_SINGLETON;
 
 public:
-	enum Enum : quint8 {
-		None = 0,
-		NetworkManager = 1,
-	};
+enum Enum : quint8 {
+	None = 0,
+	NetworkManager = 1,
+	Windows = 2,
+};
 	Q_ENUM(Enum);
 	Q_INVOKABLE static QString toString(NetworkBackendType::Enum type);
 };

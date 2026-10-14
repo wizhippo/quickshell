@@ -8,7 +8,16 @@
 
 #include "../core/doc.hpp"
 #include "enums.hpp"
-#include "nm/settings.hpp"
+
+// NMSettings only exists when the NetworkManager backend is built. The base
+// classes must stay usable for backends that have no connection profiles.
+#ifdef QS_NETWORK_BACKEND_NM
+#	include "nm/settings.hpp"
+#else
+namespace qs::network {
+class NMSettings;
+}
+#endif
 
 namespace qs::network {
 class NetworkDevice;
@@ -28,10 +37,12 @@ class Network: public QObject {
 	Q_PROPERTY(QString name READ default NOTIFY nameChanged BINDABLE bindableName);
 	/// The device this network belongs to.
 	Q_PROPERTY(NetworkDevice* device READ device CONSTANT);
+#ifdef QS_NETWORK_BACKEND_NM
 	/// A list of NetworkManager connection settings profiles for this network.
 	///
 	/// > [!WARNING] Only valid for the NetworkManager backend. 
 	Q_PROPERTY(QList<NMSettings*> nmSettings READ default NOTIFY nmSettingsChanged BINDABLE bindableNmSettings);
+#endif
 	/// True if the network is connected.
 	Q_PROPERTY(bool connected READ default NOTIFY connectedChanged BINDABLE bindableConnected);
 	/// True if the wifi network has known connection settings saved.
@@ -50,24 +61,30 @@ public:
 	/// > signal will be emitted with `NoSecrets`.
 	/// > @@WifiNetwork.connectWithPsk() can be used to provide secrets.
 	Q_INVOKABLE void connect();
+#ifdef QS_NETWORK_BACKEND_NM
 	/// Attempt to connect to the network with a specific @@nmSettings entry.
 	///
 	/// > [!WARNING] Only valid for the NetworkManager backend.
 	Q_INVOKABLE void connectWithSettings(NMSettings* settings);
+#endif
 	/// Disconnect from the network.
 	Q_INVOKABLE void disconnect();
 	/// Forget all connection settings for this network.
 	Q_INVOKABLE void forget();
 
+#ifdef QS_NETWORK_BACKEND_NM
 	void settingsAdded(NMSettings* settings);
 	void settingsRemoved(NMSettings* settings);
+#endif
 
 	// clang-format off
 	[[nodiscard]] QString name() const { return this->bName; }
 	[[nodiscard]] QBindable<QString> bindableName() { return &this->bName; }
 	[[nodiscard]] NetworkDevice* device() const { return this->mDevice; }
+#ifdef QS_NETWORK_BACKEND_NM
  	[[nodiscard]] const QList<NMSettings*>& nmSettings() const { return this->bNmSettings; }
 	QBindable<QList<NMSettings*>> bindableNmSettings() const { return &this->bNmSettings; }
+#endif
 	QBindable<bool> bindableConnected() { return &this->bConnected; }
 	QBindable<bool> bindableKnown() { return &this->bKnown; }
 	[[nodiscard]] ConnectionState::Enum state() const { return this->bState; }
@@ -84,9 +101,13 @@ signals:
 	void knownChanged();
 	void stateChanged();
 	void stateChangingChanged();
+#ifdef QS_NETWORK_BACKEND_NM
 	void nmSettingsChanged();
+#endif
 	QSDOC_HIDE void requestConnect();
+#ifdef QS_NETWORK_BACKEND_NM
 	QSDOC_HIDE void requestConnectWithSettings(NMSettings* settings);
+#endif
 	QSDOC_HIDE void requestDisconnect();
 	QSDOC_HIDE void requestForget();
 
@@ -97,7 +118,9 @@ protected:
 	Q_OBJECT_BINDABLE_PROPERTY(Network, bool, bKnown, &Network::knownChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(Network, ConnectionState::Enum, bState, &Network::stateChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(Network, bool, bStateChanging, &Network::stateChangingChanged);
+#ifdef QS_NETWORK_BACKEND_NM
 	Q_OBJECT_BINDABLE_PROPERTY(Network, QList<NMSettings*>, bNmSettings, &Network::nmSettingsChanged);
+#endif
 	// clang-format on
 
 private:

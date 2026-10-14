@@ -1,4 +1,7 @@
-pkg_check_modules(libdrm REQUIRED IMPORTED_TARGET libdrm)
+if (NOT WIN32)
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(libdrm REQUIRED IMPORTED_TARGET libdrm)
+endif()
 qt_add_library(quickshell-core STATIC
 	plugin.cpp
 	shell.cpp
@@ -33,7 +36,6 @@ qt_add_library(quickshell-core STATIC
 	types.cpp
 	qsmenuanchor.cpp
 	clock.cpp
-	logging.cpp
 	paths.cpp
 	instanceinfo.cpp
 	common.cpp
@@ -42,8 +44,23 @@ qt_add_library(quickshell-core STATIC
 	colorquantizer.cpp
 	toolsupport.cpp
 	streamreader.cpp
-	debuginfo.cpp
 )
+
+if (WIN32)
+	# Keep Shell SDK declarations completely out of quickshell-core's Qt
+	# compilation environment. This scanner has only native SDK/STL headers.
+	add_library(quickshell-windows-app-scanner STATIC
+		../windows/desktop_entry_scan.cpp ../windows/desktop_entry_scan.hpp)
+	set_target_properties(quickshell-windows-app-scanner PROPERTIES
+		AUTOMOC OFF AUTOUIC OFF AUTORCC OFF DISABLE_PRECOMPILE_HEADERS ON
+		COMPILE_OPTIONS "/W4;/permissive-;/Zc:preprocessor")
+	target_link_libraries(quickshell-windows-app-scanner PRIVATE ole32 shell32)
+	target_link_libraries(quickshell-core PRIVATE quickshell-windows-app-scanner)
+	target_sources(quickshell-core PRIVATE logging.hpp ../windows/logging.cpp ../windows/debuginfo.cpp)
+else()
+	target_sources(quickshell-core PRIVATE logging.cpp debuginfo.cpp)
+	target_link_libraries(quickshell-core PRIVATE PkgConfig::libdrm)
+endif()
 
 qt_add_qml_module(quickshell-core
 	URI Quickshell
@@ -55,7 +72,7 @@ qt_add_qml_module(quickshell-core
 
 install_qml_module(quickshell-core)
 
-target_link_libraries(quickshell-core PRIVATE Qt::Quick Qt::QuickPrivate Qt::Widgets quickshell-build PkgConfig::libdrm)
+target_link_libraries(quickshell-core PRIVATE Qt::Quick Qt::QuickPrivate Qt::Widgets Qt::Network quickshell-build)
 
 qs_module_pch(quickshell-core SET large)
 

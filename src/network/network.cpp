@@ -9,7 +9,9 @@
 
 #include "../core/logcat.hpp"
 #include "enums.hpp"
-#include "nm/settings.hpp"
+#ifdef QS_NETWORK_BACKEND_NM
+#	include "nm/settings.hpp"
+#endif
 
 namespace qs::network {
 
@@ -35,6 +37,7 @@ void Network::connect() {
 	this->requestConnect();
 }
 
+#ifdef QS_NETWORK_BACKEND_NM
 void Network::connectWithSettings(NMSettings* settings) {
 	if (this->bConnected) {
 		qCCritical(logNetwork) << this << "is already connected.";
@@ -43,6 +46,7 @@ void Network::connectWithSettings(NMSettings* settings) {
 	if (this->bNmSettings.value().indexOf(settings) == -1) return;
 	this->requestConnectWithSettings(settings);
 }
+#endif
 
 void Network::disconnect() {
 	if (!this->bConnected) {
@@ -54,6 +58,7 @@ void Network::disconnect() {
 
 void Network::forget() { this->requestForget(); }
 
+#ifdef QS_NETWORK_BACKEND_NM
 void Network::settingsAdded(NMSettings* settings) {
 	auto list = this->bNmSettings.value();
 	if (list.contains(settings)) return;
@@ -66,5 +71,6 @@ void Network::settingsRemoved(NMSettings* settings) {
 	list.removeOne(settings);
 	this->bNmSettings = list;
 }
+#endif
 
 } // namespace qs::network

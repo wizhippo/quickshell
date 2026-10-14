@@ -18,6 +18,19 @@
 
 namespace qs::core {
 
+#ifdef Q_OS_WIN
+bool QmlToolingSupport::updateTooling(const QDir& configRoot, QmlScanner&) {
+	// The upstream VFS requires Unix symlinks. Do not create .lnk shortcuts
+	// and advertise them as working QML imports on Windows.
+	if (QFileInfo::exists(configRoot.filePath(".qmlls.ini"))) {
+		static bool warned = false;
+		if (!warned) qWarning() << "Quickshell's Unix QML tooling VFS is not available on Windows yet.";
+		warned = true;
+	}
+	return false;
+}
+#else
+
 namespace {
 QS_LOGGING_CATEGORY(logTooling, "quickshell.tooling", QtWarningMsg);
 }
@@ -242,4 +255,5 @@ void QmlToolingSupport::updateToolingFs(
 	}
 }
 
+#endif
 } // namespace qs::core

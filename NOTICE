@@ -1,0 +1,22 @@
+Quickshell Windows port
+
+This is a modified version of Quickshell, licensed under the GNU Lesser
+General Public License version 3. See LICENSE and LICENSE-GPL for the license
+terms. Existing upstream copyright and license notices remain applicable.
+
+Upstream project: https://quickshell.outfoxxed.me/
+Upstream source: https://git.outfoxxed.me/quickshell/quickshell
+Port base: Quickshell 0.3.2, commit 4f508be500dea6e5732cc3d50382a0048b17e7b1
+
+Windows modifications documented 2026-10-13 include MSVC build support,
+native panels, taskbar grouping, tray hosting, audio, power, networking,
+read-only notification history, and application discovery. Details and
+limitations are in WINDOWS.md. These modifications remain under LGPLv3.
+
+Recipients may modify and rebuild the covered code. This software is provided
+without warranty, as stated in its license. Binary distributors must provide
+matching source and preserve the recipient rights described by LGPLv3.
+
+WINDOWS-RELEASE.md describes release preparation. THIRD-PARTY-NOTICES.md
+identifies dependency notices. The presence of these files does not supply
+corresponding source or complete the dependency-license review.

@@ -19,6 +19,7 @@ QString NetworkBackendType::toString(NetworkBackendType::Enum type) {
 	switch (type) {
 	case NetworkBackendType::None: return "None";
 	case NetworkBackendType::NetworkManager: return "NetworkManager";
+	case NetworkBackendType::Windows: return "Windows";
 	default: return "Unknown";
 	}
 }

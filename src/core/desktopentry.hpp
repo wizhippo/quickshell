@@ -263,9 +263,12 @@ public:
 	static DesktopEntryManager* instance();
 
 	static const QStringList& desktopPaths();
+	QBindable<bool> bindableLoading() { return &this->bLoading; }
+	QBindable<QString> bindableErrorString() { return &this->bErrorString; }
 
 signals:
 	void applicationsChanged();
+	void scanStatusChanged();
 
 private slots:
 	void handleFileChanges();
@@ -280,6 +283,10 @@ private:
 	DesktopEntryMonitor* monitor = nullptr;
 	bool scanInProgress = false;
 	bool scanQueued = false;
+	// clang-format off
+	Q_OBJECT_BINDABLE_PROPERTY(DesktopEntryManager, bool, bLoading, &DesktopEntryManager::scanStatusChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(DesktopEntryManager, QString, bErrorString, &DesktopEntryManager::scanStatusChanged);
+	// clang-format on
 
 	friend class DesktopEntryScanner;
 };
@@ -290,17 +297,33 @@ private:
 /// Primarily useful for looking up icons and metadata from an id, as there is
 /// currently no mechanism for usage based sorting of entries and other launcher niceties.
 ///
+/// On Windows this indexes the AppsFolder namespace instead of XDG files.
+/// IDs are complete application identifiers; @@DesktopEntry.command and
+/// @@DesktopEntry.execute() activate them through Explorer. Icon, category
+/// and action metadata are not populated by the Windows scanner.
+///
 /// [desktop entry specification]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 class DesktopEntries: public QObject {
 	Q_OBJECT;
 	/// All desktop entries of type Application that are not Hidden or NoDisplay.
 	QSDOC_TYPE_OVERRIDE(ObjectModel<DesktopEntry>*);
 	Q_PROPERTY(UntypedObjectModel* applications READ applications CONSTANT);
+	// clang-format off
+	/// Whether an asynchronous discovery scan is running.
+	Q_PROPERTY(bool loading READ loading NOTIFY scanStatusChanged BINDABLE bindableLoading);
+	/// Last discovery error, empty after a successful scan.
+	Q_PROPERTY(QString errorString READ errorString NOTIFY scanStatusChanged BINDABLE bindableErrorString);
+	// clang-format on
 	QML_ELEMENT;
 	QML_SINGLETON;
 
 public:
 	explicit DesktopEntries();
+	Q_INVOKABLE static void refresh();
+	QBindable<bool> bindableLoading() { return DesktopEntryManager::instance()->bindableLoading(); }
+	QBindable<QString> bindableErrorString() { return DesktopEntryManager::instance()->bindableErrorString(); }
+	static bool loading() { return DesktopEntryManager::instance()->bindableLoading().value(); }
+	static QString errorString() { return DesktopEntryManager::instance()->bindableErrorString().value(); }
 
 	/// Look up a desktop entry by name. Includes NoDisplay entries. May return null.
 	///
@@ -316,4 +339,5 @@ public:
 
 signals:
 	void applicationsChanged();
+	void scanStatusChanged();
 };

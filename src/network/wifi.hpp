@@ -23,6 +23,8 @@ class WifiNetwork: public Network {
 	Q_PROPERTY(qreal signalStrength READ default NOTIFY signalStrengthChanged BINDABLE bindableSignalStrength);
 	/// The security type of the wifi network.
 	Q_PROPERTY(WifiSecurityType::Enum security READ default NOTIFY securityChanged BINDABLE bindableSecurity);
+	/// The frequency band the network operates on, in MHz, or 0 if unknown.
+	Q_PROPERTY(qint32 band READ default NOTIFY bandChanged BINDABLE bindableBand);
 	// clang-format on
 
 public:
@@ -40,16 +42,19 @@ public:
 
 	QBindable<qreal> bindableSignalStrength() { return &this->bSignalStrength; }
 	QBindable<WifiSecurityType::Enum> bindableSecurity() { return &this->bSecurity; }
+	QBindable<qint32> bindableBand() { return &this->bBand; }
 
 signals:
 	QSDOC_HIDE void requestConnectWithPsk(QString psk);
 	void signalStrengthChanged();
 	void securityChanged();
+	void bandChanged();
 
 private:
 	// clang-format off
 	Q_OBJECT_BINDABLE_PROPERTY(WifiNetwork, qreal, bSignalStrength, &WifiNetwork::signalStrengthChanged);
 	Q_OBJECT_BINDABLE_PROPERTY(WifiNetwork, WifiSecurityType::Enum, bSecurity, &WifiNetwork::securityChanged);
+	Q_OBJECT_BINDABLE_PROPERTY(WifiNetwork, qint32, bBand, &WifiNetwork::bandChanged);
 	// clang-format on
 };
 
